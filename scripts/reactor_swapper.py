@@ -117,12 +117,49 @@ def getAnalysisModel(det_size = (640, 640)):
     ANALYSIS_MODELS[str(det_size[0])] = ANALYSIS_MODEL
     return ANALYSIS_MODEL
 
+def _resolve_inswapper_model_path(model: str) -> str:
+    # Accept absolute path
+    if os.path.isabs(model) and os.path.exists(model):
+        return model
+
+    # Check our configured models folder first (Comfy-style)
+    candidate = os.path.join(insightface_path, model)
+    if os.path.exists(candidate):
+        return candidate
+
+    # Try user cache used by InsightFace
+    user_cache_dir = os.path.expanduser("~/.insightface/models")
+    user_cache_path = os.path.join(user_cache_dir, model)
+    if os.path.exists(user_cache_path):
+        return user_cache_path
+
+    # Ask InsightFace to ensure availability (downloads if needed)
+    try:
+        from insightface.utils import ensure_available
+        # strip extension for ensure_available name
+        name = os.path.splitext(model)[0]
+        ensured = ensure_available('models', name, root=os.path.expanduser('~/.insightface'))
+        # ensured may be a directory; if so, append the filename
+        if os.path.isdir(ensured):
+            ensured_path = os.path.join(ensured, model)
+        else:
+            ensured_path = ensured
+        if os.path.exists(ensured_path):
+            return ensured_path
+    except Exception:
+        pass
+
+    # Fallback to original string; downstream will error if missing
+    return model
+
+
 def getFaceSwapModel(model_path: str):
     global FS_MODEL, CURRENT_FS_MODEL_PATH
-    if FS_MODEL is None or CURRENT_FS_MODEL_PATH is None or CURRENT_FS_MODEL_PATH != model_path:
-        CURRENT_FS_MODEL_PATH = model_path
+    resolved_path = _resolve_inswapper_model_path(model_path)
+    if FS_MODEL is None or CURRENT_FS_MODEL_PATH is None or CURRENT_FS_MODEL_PATH != resolved_path:
+        CURRENT_FS_MODEL_PATH = resolved_path
         FS_MODEL = unload_model(FS_MODEL)
-        FS_MODEL = insightface.model_zoo.get_model(model_path, providers=providers)
+        FS_MODEL = insightface.model_zoo.get_model(resolved_path, providers=providers)
 
     return FS_MODEL
 
@@ -343,8 +380,7 @@ def swap_face(
             elif source_face is not None:
                 result = target_img
                 if "inswapper" in model:
-                    candidate = os.path.join(insightface_path, model)
-                    model_path = candidate if os.path.exists(candidate) else model
+                    model_path = _resolve_inswapper_model_path(model)
                 elif "reswapper" in model:
                     candidate = os.path.join(reswapper_path, model)
                     model_path = candidate if os.path.exists(candidate) else model
@@ -543,8 +579,7 @@ def swap_face_many(
                 logger.status(f'Source Faces must have no entries (default=0), one entry, or same number of entries as target faces.')
             elif source_face is not None:
                 results = target_imgs
-                candidate = os.path.join(insightface_path, model)
-                model_path = candidate if os.path.exists(candidate) else model
+                model_path = _resolve_inswapper_model_path(model)
                 face_swapper = getFaceSwapModel(model_path)
 
                 source_face_idx = 0
