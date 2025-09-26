@@ -1,3 +1,10 @@
+
+<div align="left">
+	
+# https://github.com/Gourieff/ComfyUI-ReActor forked to be used outside of ComfyUI.
+
+</div>
+
 <div align="center">
 
   <img src="https://github.com/Gourieff/Assets/raw/main/sd-webui-reactor/ReActor_logo_NEW_EN.png?raw=true" alt="logo" width="180px"/>
