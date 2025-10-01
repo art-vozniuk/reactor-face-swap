@@ -1,5 +1,5 @@
 [project]
-name = "face-swap-tools"
+name = "face_swap"
 description = "(SFW-Friendly) The Fast and Simple Face Swap Extension Node for ComfyUI, based on ReActor SD-WebUI Face Swap Extension"
 version = "0.6.2-a3"
 license = { file = "LICENSE" }
