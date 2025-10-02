@@ -3,7 +3,19 @@ name = "face_swap"
 description = "(SFW-Friendly) The Fast and Simple Face Swap Extension Node for ComfyUI, based on ReActor SD-WebUI Face Swap Extension"
 version = "0.6.2-a3"
 license = { file = "LICENSE" }
-dependencies = ["insightface==0.7.3", "onnx>=1.14.0", "onnxruntime>=1.15.0", "opencv-python>=4.7.0.72", "numpy>=2.3.3", "segment_anything", "albumentations>=1.4.16", "ultralytics"]
+dependencies = [
+    "torch==2.7.1",
+    "torchvision==0.22.1",
+    "torchaudio==2.7.1",
+    "insightface==0.7.3",
+    "onnx>=1.14.0",
+    "onnxruntime>=1.15.0",
+    "opencv-python>=4.7.0.72",
+    "numpy>=2.3.3",
+    "segment_anything",
+    "albumentations>=1.4.16",
+    "ultralytics"
+]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
