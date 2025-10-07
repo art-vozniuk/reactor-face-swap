@@ -239,8 +239,8 @@ def analyze_faces(img_data: np.ndarray, det_size=(640, 640)):
 def get_face_single(img_data: np.ndarray, face, face_index=0, det_size=(640, 640), gender_source=0, gender_target=0, order="large-small"):
 
     buffalo_path = os.path.join(insightface_models_path, "buffalo_l.zip")
-    if os.path.exists(buffalo_path):
-        os.remove(buffalo_path)
+    #if os.path.exists(buffalo_path):
+    #   os.remove(buffalo_path)
 
     if gender_source != 0:
         if len(face) == 0 and det_size[0] > 320 and det_size[1] > 320:
