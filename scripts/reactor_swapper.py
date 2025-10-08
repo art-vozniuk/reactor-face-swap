@@ -66,9 +66,9 @@ if os.path.exists(models_path_old):
     move_path(insightface_models_path_old, insightface_models_path)
     move_path(insightface_path_old, insightface_path)
     move_path(models_path_old, models_path)
-if os.path.exists(insightface_path) and os.path.exists(insightface_path_old):
-    shutil.rmtree(insightface_path_old)
-    shutil.rmtree(models_path_old)
+# if os.path.exists(insightface_path) and os.path.exists(insightface_path_old):
+#     shutil.rmtree(insightface_path_old)
+#     shutil.rmtree(models_path_old)
 
 
 FS_MODEL = None
