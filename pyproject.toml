@@ -14,7 +14,8 @@ dependencies = [
     "numpy>=2.3.3",
     "segment_anything",
     "albumentations>=1.4.16",
-    "ultralytics"
+    "ultralytics",
+    "safetensors==0.6.2"
 ]
 
 [build-system]
