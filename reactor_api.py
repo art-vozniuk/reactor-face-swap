@@ -45,7 +45,7 @@ def swap_face_api(
     source_face_index: int = 0,
     target_face_index: int = 0,
     face_boost_model: str | None = None,
-    visibility: float = 1.0,
+    visibility: int = 1,
     codeformer_weight: float = 0.5,
     interpolation: str = "Bicubic",
 ) -> Tuple[Image.Image, List[tuple]]:
@@ -61,7 +61,6 @@ def swap_face_api(
         faces_index=[target_face_index],
         gender_source=0,
         gender_target=0,
-        face_model=None,
         faces_order=["large-small", "large-small"],
         face_boost_enabled=bool(face_restore_model),
         face_restore_model=face_restore_model or "none",
