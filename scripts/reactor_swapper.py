@@ -324,27 +324,35 @@ def swap_face(
     codeformer_weight: float = 0.5,
     interpolation: str = "Bicubic",
 ):
+    import time
+    
+    t0 = time.perf_counter()
     result_image = target_img
     bbox = []
     swapped_indexes = []
 
+    t1 = time.perf_counter()
     target_img = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2BGR)
     source_img = cv2.cvtColor(np.array(source_img), cv2.COLOR_RGB2BGR)
+    logger.info(f"swap_face: image_conversion took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
-    logger.status("Analyzing Source Image...")
+    t1 = time.perf_counter()
     source_faces = analyze_faces(source_img)
+    logger.info(f"swap_face: analyze_source_faces took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
     if not source_faces:
-        logger.error("No source face(s) found")
+        logger.error("swap_face: no source faces found")
         return result_image, bbox, swapped_indexes
 
-    logger.status("Analyzing Target Image...")
+    t1 = time.perf_counter()
     target_faces = analyze_faces(target_img)
+    logger.info(f"swap_face: analyze_target_faces took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
     if len(target_faces) == 0:
-        logger.status("No target faces found, skipping...")
+        logger.error("swap_face: no target faces found")
         return result_image, bbox, swapped_indexes
 
+    t1 = time.perf_counter()
     source_face, src_wrong_gender, source_face_index = get_face_single(
         source_img,
         source_faces,
@@ -352,15 +360,17 @@ def swap_face(
         gender_source=gender_source,
         order=faces_order[1],
     )
+    logger.info(f"swap_face: select_source_face took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
     if source_face is None:
-        logger.status("No source face in the provided Index")
+        logger.error("swap_face: no source face in the provided index")
         return result_image, bbox, swapped_indexes
 
     if src_wrong_gender != 0:
-        logger.status("Wrong source gender detected")
+        logger.error("swap_face: wrong source gender detected")
         return result_image, bbox, swapped_indexes
 
+    t1 = time.perf_counter()
     if "inswapper" in model:
         model_path = _resolve_inswapper_model_path(model)
     elif "reswapper" in model:
@@ -368,15 +378,17 @@ def swap_face(
         model_path = candidate if os.path.exists(candidate) else model
     else:
         model_path = model
-
     face_swapper = getFaceSwapModel(model_path)
+    logger.info(f"swap_face: load_swap_model took {(time.perf_counter() - t1) * 1000:.1f}ms")
+
     result = target_img
 
     for face_num in faces_index:
         if face_num >= len(target_faces):
-            logger.status("Face index out of bounds, skipping...")
+            logger.error("swap_face: face index out of bounds")
             break
 
+        t1 = time.perf_counter()
         target_face, wrong_gender, target_face_index = get_face_single(
             target_img,
             target_faces,
@@ -384,20 +396,23 @@ def swap_face(
             gender_target=gender_target,
             order=faces_order[0],
         )
+        logger.info(f"swap_face: select_target_face took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
         if target_face is None or wrong_gender != 0:
             if wrong_gender == 1:
-                logger.status("Wrong target gender detected")
+                logger.error("swap_face: wrong target gender detected")
             else:
-                logger.info(f"No target face found for {face_num}")
+                logger.error(f"swap_face: no target face found for index {face_num}")
             continue
 
-        logger.status("Swapping...")
         if face_boost_enabled:
-            logger.status("Face Boost is enabled")
+            t1 = time.perf_counter()
             bgr_fake, M = face_swapper.get(
                 result, target_face, source_face, paste_back=False
             )
+            logger.info(f"swap_face: face_swap_inference took {(time.perf_counter() - t1) * 1000:.1f}ms")
+            
+            t1 = time.perf_counter()
             bgr_fake, scale = restorer.get_restored_face(
                 bgr_fake,
                 face_restore_model,
@@ -405,13 +420,23 @@ def swap_face(
                 codeformer_weight,
                 interpolation,
             )
+            logger.info(f"swap_face: face_restoration took {(time.perf_counter() - t1) * 1000:.1f}ms")
+            
+            t1 = time.perf_counter()
             M *= scale
             result = swapper.in_swap(target_img, bgr_fake, M)
+            logger.info(f"swap_face: face_blending took {(time.perf_counter() - t1) * 1000:.1f}ms")
         else:
+            t1 = time.perf_counter()
             result = face_swapper.get(result, target_face, source_face)
+            logger.info(f"swap_face: face_swap_inference took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
         bbox = [tuple(map(float, target_face.bbox))]
         swapped_indexes = [target_face_index]
 
+    t1 = time.perf_counter()
     result_image = Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
+    logger.info(f"swap_face: result_conversion took {(time.perf_counter() - t1) * 1000:.1f}ms")
+    
+    logger.info(f"swap_face: TOTAL took {(time.perf_counter() - t0) * 1000:.1f}ms")
     return result_image, bbox, swapped_indexes
