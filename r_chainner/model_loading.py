@@ -7,7 +7,6 @@ class UnsupportedModel(Exception):
 
 
 def load_state_dict(state_dict) -> PyTorchModel:
-
     state_dict_keys = list(state_dict.keys())
 
     if "params_ema" in state_dict_keys:

@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 # The following code is almost entirely copied from INSwapper; the only change here is that we want to use Lanczos
 # interpolation for the warpAffine call. Now that the face has been restored, Lanczos represents a good compromise
 # whether the restored face needs to be upscaled or downscaled.
@@ -10,9 +11,17 @@ def in_swap(img, bgr_fake, M):
     img_white = np.full((bgr_fake.shape[0], bgr_fake.shape[1]), 255, dtype=np.float32)
 
     # Note the use of bicubic here; this is functionally the only change from the source code
-    bgr_fake = cv2.warpAffine(bgr_fake, IM, (target_img.shape[1], target_img.shape[0]), borderValue=0.0, flags=cv2.INTER_CUBIC)
+    bgr_fake = cv2.warpAffine(
+        bgr_fake,
+        IM,
+        (target_img.shape[1], target_img.shape[0]),
+        borderValue=0.0,
+        flags=cv2.INTER_CUBIC,
+    )
 
-    img_white = cv2.warpAffine(img_white, IM, (target_img.shape[1], target_img.shape[0]), borderValue=0.0)
+    img_white = cv2.warpAffine(
+        img_white, IM, (target_img.shape[1], target_img.shape[0]), borderValue=0.0
+    )
     img_white[img_white > 20] = 255
     img_mask = img_white
     mask_h_inds, mask_w_inds = np.where(img_mask == 255)

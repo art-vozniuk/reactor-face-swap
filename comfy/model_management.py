@@ -11,5 +11,3 @@ def get_torch_device():
 
 def processing_interrupted() -> bool:
     return False
-
-

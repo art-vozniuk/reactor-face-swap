@@ -10,7 +10,8 @@ PyTorchFaceModel = Union[GFPGANv1Clean]
 def is_pytorch_face_model(model: object):
     return isinstance(model, PyTorchFaceModels)
 
-PyTorchModels = (*PyTorchFaceModels, )
+
+PyTorchModels = (*PyTorchFaceModels,)
 PyTorchModel = Union[PyTorchFaceModel]
 
 

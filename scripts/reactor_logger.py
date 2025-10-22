@@ -37,7 +37,9 @@ addLoggingLevel("STATUS", logging.INFO + 5)
 if not logger.handlers:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(
-        ColoredFormatter("[%(name)s] %(asctime)s - %(levelname)s - %(message)s",datefmt="%H:%M:%S")
+        ColoredFormatter(
+            "[%(name)s] %(asctime)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S"
+        )
     )
     logger.addHandler(handler)
 

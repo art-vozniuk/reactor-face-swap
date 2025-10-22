@@ -30,6 +30,7 @@ def _ensure_facerestore_model(name_or_path: str) -> str:
     if url is not None:
         os.makedirs(os.path.dirname(resolved), exist_ok=True)
         import urllib.request
+
         urllib.request.urlretrieve(url, resolved)
         return resolved
 
@@ -69,5 +70,3 @@ def swap_face_api(
         interpolation=interpolation,
     )
     return result, bbox
-
-

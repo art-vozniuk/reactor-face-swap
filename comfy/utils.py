@@ -13,5 +13,3 @@ class ProgressBar:
 def load_torch_file(path: str, safe_load: bool = True):
     # Simple wrapper used by ReActor; mirrors ComfyUI behavior sufficiently for our use
     return torch.load(path, map_location="cpu")
-
-
