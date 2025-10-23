@@ -112,17 +112,10 @@ def get_restored_face(
                     facerestore_model = model_loading.load_state_dict(sd).eval()
                     facerestore_model.to(device)
 
-                # @art-vozniuk FP16 optimization for CUDA
-                if device.type == 'cuda':
-                    facerestore_model = facerestore_model.half()
-                    input_tensor = cropped_face_t.half()
-                else:
-                    input_tensor = cropped_face_t
-
                 output = (
-                    facerestore_model(input_tensor, w=codeformer_weight)[0]
+                    facerestore_model(cropped_face_t, w=codeformer_weight)[0]
                     if "codeformer" in face_restore_model.lower()
-                    else facerestore_model(input_tensor)[0]
+                    else facerestore_model(cropped_face_t)[0]
                 )
                 restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
 
