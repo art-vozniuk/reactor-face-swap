@@ -21,7 +21,7 @@ from reactor_utils import (
     img2tensor,
     set_ort_session,
     prepare_cropped_face,
-    normalize_cropped_face
+    normalize_cropped_face,
 )
 
 
@@ -34,12 +34,13 @@ else:
     providers = ["CPUExecutionProvider"]
 
 
-def get_restored_face(cropped_face,
-                      face_restore_model,
-                      face_restore_visibility,
-                      codeformer_weight,
-                      interpolation: str = "Bicubic"):
-
+def get_restored_face(
+    cropped_face,
+    face_restore_model,
+    face_restore_visibility,
+    codeformer_weight,
+    interpolation: str = "Bicubic",
+):
     if interpolation == "Bicubic":
         interpolate = cv2.INTER_CUBIC
     elif interpolation == "Bilinear":
@@ -48,7 +49,7 @@ def get_restored_face(cropped_face,
         interpolate = cv2.INTER_NEAREST
     elif interpolation == "Lanczos":
         interpolate = cv2.INTER_LANCZOS4
-    
+
     face_size = 512
     if "1024" in face_restore_model.lower():
         face_size = 1024
@@ -56,10 +57,14 @@ def get_restored_face(cropped_face,
         face_size = 2048
 
     scale = face_size / cropped_face.shape[0]
-    
-    logger.status(f"Boosting the Face with {face_restore_model} | Face Size is set to {face_size} with Scale Factor = {scale} and '{interpolation}' interpolation")
 
-    cropped_face = cv2.resize(cropped_face, (face_size, face_size), interpolation=interpolate)
+    logger.status(
+        f"Boosting the Face with {face_restore_model} | Face Size is set to {face_size} with Scale Factor = {scale} and '{interpolation}' interpolation"
+    )
+
+    cropped_face = cv2.resize(
+        cropped_face, (face_size, face_size), interpolation=interpolate
+    )
 
     # For upscaling the base 128px face, I found bicubic interpolation to be the best compromise targeting antialiasing
     # and detail preservation. Nearest is predictably unusable, Linear produces too much aliasing, and Lanczos produces
@@ -68,16 +73,13 @@ def get_restored_face(cropped_face,
     model_path = folder_paths.get_full_path("facerestore_models", face_restore_model)
     device = model_management.get_torch_device()
 
-    cropped_face_t = img2tensor(cropped_face / 255., bgr2rgb=True, float32=True)
+    cropped_face_t = img2tensor(cropped_face / 255.0, bgr2rgb=True, float32=True)
     normalize(cropped_face_t, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True)
     cropped_face_t = cropped_face_t.unsqueeze(0).to(device)
 
     try:
-
         with torch.no_grad():
-
             if ".onnx" in face_restore_model:  # ONNX models
-
                 ort_session = set_ort_session(model_path, providers=providers)
                 ort_session_inputs = {}
                 facerestore_model = ort_session
@@ -94,7 +96,6 @@ def get_restored_face(cropped_face,
                 restored_face = normalize_cropped_face(output)
 
             else:  # PTH models
-
                 if "codeformer" in face_restore_model.lower():
                     codeformer_net = ARCH_REGISTRY.get("CodeFormer")(
                         dim_embd=512,
@@ -111,20 +112,25 @@ def get_restored_face(cropped_face,
                     facerestore_model = model_loading.load_state_dict(sd).eval()
                     facerestore_model.to(device)
 
-                output = facerestore_model(cropped_face_t, w=codeformer_weight)[
-                    0] if "codeformer" in face_restore_model.lower() else facerestore_model(cropped_face_t)[0]
+                output = (
+                    facerestore_model(cropped_face_t, w=codeformer_weight)[0]
+                    if "codeformer" in face_restore_model.lower()
+                    else facerestore_model(cropped_face_t)[0]
+                )
                 restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
 
         del output
         torch.cuda.empty_cache()
 
     except Exception as error:
-
         print(f"\tFailed inference: {error}", file=sys.stderr)
         restored_face = tensor2img(cropped_face_t, rgb2bgr=True, min_max=(-1, 1))
 
     if face_restore_visibility < 1:
-        restored_face = cropped_face * (1 - face_restore_visibility) + restored_face * face_restore_visibility
+        restored_face = (
+            cropped_face * (1 - face_restore_visibility)
+            + restored_face * face_restore_visibility
+        )
 
     restored_face = restored_face.astype("uint8")
     return restored_face, scale

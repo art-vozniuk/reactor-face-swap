@@ -9,13 +9,14 @@ dependencies = [
     "torchaudio==2.7.1",
     "insightface==0.7.3",
     "onnx>=1.14.0",
-    "onnxruntime>=1.15.0",
+    "onnxruntime>=1.23.2; platform_system == 'Darwin'",
+    "onnxruntime-gpu>=1.23.2; platform_system == 'Linux' or platform_system == 'Windows'",
     "opencv-python>=4.7.0.72",
     "numpy>=2.3.3",
     "segment_anything",
     "albumentations>=1.4.16",
     "ultralytics",
-    "safetensors==0.6.2"
+    "safetensors==0.6.2",
 ]
 
 [build-system]

@@ -9,7 +9,10 @@ supported_pt_extensions: Set[str] = {".pth", ".onnx"}
 
 # category -> (paths, extensions)
 folder_names_and_paths: Dict[str, Tuple[List[str], Set[str]]] = {
-    "facerestore_models": ([os.path.join(models_dir, "facerestore_models")], supported_pt_extensions),
+    "facerestore_models": (
+        [os.path.join(models_dir, "facerestore_models")],
+        supported_pt_extensions,
+    ),
     "insightface": ([os.path.join(models_dir, "insightface")], {".onnx", ".pth"}),
     "reswapper": ([os.path.join(models_dir, "reswapper")], {".onnx", ".pth"}),
 }
@@ -37,5 +40,3 @@ def get_full_path(category: str, filename: str) -> str:
                 return cand
     # default location
     return os.path.join(models_dir, category, filename)
-
-

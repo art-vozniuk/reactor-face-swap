@@ -1,5 +1,4 @@
 class Processing:
-
     def __init__(self, init_imgs):
         self.init_images = init_imgs
         self.width = init_imgs[0].width
@@ -10,6 +9,5 @@ class Processing:
 
 
 class ProcessingImg2Img(Processing):
-
     def __init__(self, init_img):
         super().__init__(init_img)
