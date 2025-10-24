@@ -1,6 +1,6 @@
 # Face Swap Module
 
-This repository is forked from [Gourieff/ComfyUI-ReActor](https://github.com/Gourieff/ComfyUI-ReActor) to use its core face swap pipeline in my demo project.
+This repository is forked from [Gourieff/ComfyUI-ReActor](https://github.com/Gourieff/ComfyUI-ReActor) to use its core face swap pipeline in my [demo](https://github.com/art-vozniuk/demo-hub) project.
 
 ## Changes from Original
 
