@@ -2,7 +2,11 @@ import os
 from typing import List, Tuple
 from PIL import Image
 
-from scripts.reactor_swapper import swap_face
+from scripts.reactor_swapper import (
+    FaceRecognitionResult,
+    recognize_faces,
+    swap_face_from_recognition,
+)
 import folder_paths
 
 
@@ -38,9 +42,21 @@ def _ensure_facerestore_model(name_or_path: str) -> str:
     return name_or_path
 
 
-def swap_face_api(
+def recognize_faces_api(
     source: Image.Image,
     target: Image.Image,
+) -> FaceRecognitionResult:
+    """Pipeline 1 entrypoint: detect faces in source and target images.
+
+    Returns a :class:`FaceRecognitionResult` whose ``source_bboxes`` and
+    ``target_bboxes`` properties expose the rectangles for every detected
+    face. The result is the input expected by :func:`swap_face_api_from_recognition`.
+    """
+    return recognize_faces(source, target)
+
+
+def swap_face_api_from_recognition(
+    recognition: FaceRecognitionResult,
     model: str = "inswapper_128.onnx",
     source_face_index: int = 0,
     target_face_index: int = 0,
@@ -49,13 +65,13 @@ def swap_face_api(
     codeformer_weight: float = 0.5,
     interpolation: str = "Bicubic",
 ) -> Tuple[Image.Image, List[tuple]]:
+    """Pipeline 2 entrypoint: swap faces using a recognition result."""
     face_restore_model = None
     if face_boost_model:
         face_restore_model = _ensure_facerestore_model(face_boost_model)
 
-    result, bbox, _ = swap_face(
-        source_img=source,
-        target_img=target,
+    result, bbox, _ = swap_face_from_recognition(
+        recognition,
         model=model,
         source_faces_index=[source_face_index],
         faces_index=[target_face_index],
@@ -69,3 +85,28 @@ def swap_face_api(
         interpolation=interpolation,
     )
     return result, bbox
+
+
+def swap_face_api(
+    source: Image.Image,
+    target: Image.Image,
+    model: str = "inswapper_128.onnx",
+    source_face_index: int = 0,
+    target_face_index: int = 0,
+    face_boost_model: str | None = None,
+    visibility: int = 1,
+    codeformer_weight: float = 0.5,
+    interpolation: str = "Bicubic",
+) -> Tuple[Image.Image, List[tuple]]:
+    """Combined entrypoint: run recognition then swap."""
+    recognition = recognize_faces_api(source, target)
+    return swap_face_api_from_recognition(
+        recognition,
+        model=model,
+        source_face_index=source_face_index,
+        target_face_index=target_face_index,
+        face_boost_model=face_boost_model,
+        visibility=visibility,
+        codeformer_weight=codeformer_weight,
+        interpolation=interpolation,
+    )
