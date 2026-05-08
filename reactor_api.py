@@ -1,11 +1,11 @@
 import os
-from typing import List, Tuple
+from typing import List
 from PIL import Image
+from insightface.app.common import Face
 
 from scripts.reactor_swapper import (
-    FaceRecognitionResult,
-    recognize_faces,
-    swap_face_from_recognition,
+    detect_faces as _detect_faces,
+    swap_specific_face as _swap_specific_face,
 )
 import folder_paths
 
@@ -42,71 +42,45 @@ def _ensure_facerestore_model(name_or_path: str) -> str:
     return name_or_path
 
 
-def recognize_faces_api(
-    source: Image.Image,
-    target: Image.Image,
-) -> FaceRecognitionResult:
-    """Pipeline 1 entrypoint: detect faces in source and target images.
+def detect_faces(img: Image.Image) -> List[Face]:
+    """Detect faces in a single image.
 
-    Returns a :class:`FaceRecognitionResult` whose ``source_bboxes`` and
-    ``target_bboxes`` properties expose the rectangles for every detected
-    face. The result is the input expected by :func:`swap_face_api_from_recognition`.
+    Returns insightface ``Face`` objects in detector order; each one carries
+    its bbox plus the embedding/landmarks needed by :func:`swap_specific_face`.
     """
-    return recognize_faces(source, target)
+    return _detect_faces(img)
 
 
-def swap_face_api_from_recognition(
-    recognition: FaceRecognitionResult,
+def swap_specific_face(
+    target_img: Image.Image,
+    source_face: Face,
+    target_face: Face,
     model: str = "inswapper_128.onnx",
-    source_face_index: int = 0,
-    target_face_index: int = 0,
     face_boost_model: str | None = None,
     visibility: int = 1,
     codeformer_weight: float = 0.5,
     interpolation: str = "Bicubic",
-) -> Tuple[Image.Image, List[tuple]]:
-    """Pipeline 2 entrypoint: swap faces using a recognition result."""
+) -> Image.Image:
+    """Replace ``target_face`` in ``target_img`` with ``source_face``.
+
+    Both ``Face`` objects are expected to come from :func:`detect_faces` runs
+    on the appropriate images. Caller picks which face to operate on — this
+    function does no detection, no sorting, no gender filtering.
+
+    ``face_boost_model``, when provided, is resolved to a local restore-model
+    path (downloaded on first use); pass ``None`` to skip restoration.
+    """
     face_restore_model = None
     if face_boost_model:
         face_restore_model = _ensure_facerestore_model(face_boost_model)
 
-    result, bbox, _ = swap_face_from_recognition(
-        recognition,
+    return _swap_specific_face(
+        target_img,
+        source_face,
+        target_face,
         model=model,
-        source_faces_index=[source_face_index],
-        faces_index=[target_face_index],
-        gender_source=0,
-        gender_target=0,
-        faces_order=["large-small", "large-small"],
-        face_boost_enabled=bool(face_restore_model),
-        face_restore_model=face_restore_model or "none",
+        face_restore_model=face_restore_model,
         face_restore_visibility=visibility,
-        codeformer_weight=codeformer_weight,
-        interpolation=interpolation,
-    )
-    return result, bbox
-
-
-def swap_face_api(
-    source: Image.Image,
-    target: Image.Image,
-    model: str = "inswapper_128.onnx",
-    source_face_index: int = 0,
-    target_face_index: int = 0,
-    face_boost_model: str | None = None,
-    visibility: int = 1,
-    codeformer_weight: float = 0.5,
-    interpolation: str = "Bicubic",
-) -> Tuple[Image.Image, List[tuple]]:
-    """Combined entrypoint: run recognition then swap."""
-    recognition = recognize_faces_api(source, target)
-    return swap_face_api_from_recognition(
-        recognition,
-        model=model,
-        source_face_index=source_face_index,
-        target_face_index=target_face_index,
-        face_boost_model=face_boost_model,
-        visibility=visibility,
         codeformer_weight=codeformer_weight,
         interpolation=interpolation,
     )

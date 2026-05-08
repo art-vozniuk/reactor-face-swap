@@ -1,6 +1,5 @@
 import os
-from dataclasses import dataclass, field
-from typing import List, Tuple, Union
+from typing import List
 
 import cv2
 import numpy as np
@@ -158,75 +157,6 @@ def getFaceSwapModel(model_path: str):
     return FS_MODEL
 
 
-def sort_by_order(face, order: str):
-    if order == "left-right":
-        return sorted(face, key=lambda x: x.bbox[0])
-    if order == "right-left":
-        return sorted(face, key=lambda x: x.bbox[0], reverse=True)
-    if order == "top-bottom":
-        return sorted(face, key=lambda x: x.bbox[1])
-    if order == "bottom-top":
-        return sorted(face, key=lambda x: x.bbox[1], reverse=True)
-    if order == "small-large":
-        return sorted(
-            face, key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1])
-        )
-    # by default "large-small":
-    return sorted(
-        face,
-        key=lambda x: (x.bbox[2] - x.bbox[0]) * (x.bbox[3] - x.bbox[1]),
-        reverse=True,
-    )
-
-
-def get_face_gender(
-    face,
-    face_index,
-    gender_condition,
-    operated: str,
-    order: str,
-):
-    filtered_faces = [
-        f
-        for f in face
-        if (gender_condition == 0)
-        or (gender_condition == 1 and f.sex == "F")
-        or (gender_condition == 2 and f.sex == "M")
-    ]
-
-    gender = (
-        "Female" if gender_condition == 1 else "Male" if gender_condition == 0 else ""
-    )
-
-    if len(filtered_faces) == 0:
-        if gender_condition != 0:
-            logger.status(f"No faces found for -{gender}-")
-        return None, 0  # treat as "wrong gender" to skip
-
-    faces_sorted = sort_by_order(filtered_faces, order)
-
-    if face_index >= len(faces_sorted):
-        logger.info(
-            "Requested face index (%s) is out of bounds (max available index is %s)",
-            face_index,
-            len(faces_sorted),
-        )
-        return None, 0, None
-
-    face_selected = faces_sorted[face_index]
-
-    logger.info(
-        "%s Face %s: Detected Gender -%s-", operated, face_index, face_selected.sex
-    )
-
-    expected_gender = "F" if gender_condition == 1 else "M"
-    if gender_condition != 0 and face_selected.sex != expected_gender:
-        logger.info(f"{operated} Face {face_index}: WRONG gender ({face_selected.sex})")
-        return face_selected, 1, face_index  # <-- есть, но не тот пол
-
-    return face_selected, 0, face_index
-
-
 def half_det_size(det_size):
     logger.status("Trying to halve 'det_size' parameter")
     return (det_size[0] // 2, det_size[1] // 2)
@@ -249,187 +179,49 @@ def analyze_faces(img_data: np.ndarray, det_size=(640, 640)):
     return faces
 
 
-def get_face_single(
-    img_data: np.ndarray,
-    face,
-    face_index=0,
-    det_size=(640, 640),
-    gender_source=0,
-    gender_target=0,
-    order="large-small",
-):
-    buffalo_path = os.path.join(insightface_models_path, "buffalo_l.zip")
-    # if os.path.exists(buffalo_path):
-    #   os.remove(buffalo_path)
+def detect_faces(img: Image.Image) -> List[Face]:
+    """Detect faces in a single image.
 
-    if gender_source != 0:
-        if len(face) == 0 and det_size[0] > 320 and det_size[1] > 320:
-            det_size_half = half_det_size(det_size)
-            return get_face_single(
-                img_data,
-                analyze_faces(img_data, det_size_half),
-                face_index,
-                det_size_half,
-                gender_source,
-                gender_target,
-                order,
-            )
-        return get_face_gender(face, face_index, gender_source, "Source", order)
-
-    if gender_target != 0:
-        if len(face) == 0 and det_size[0] > 320 and det_size[1] > 320:
-            det_size_half = half_det_size(det_size)
-            return get_face_single(
-                img_data,
-                analyze_faces(img_data, det_size_half),
-                face_index,
-                det_size_half,
-                gender_source,
-                gender_target,
-                order,
-            )
-        return get_face_gender(face, face_index, gender_target, "Target", order)
-
-    if len(face) == 0 and det_size[0] > 320 and det_size[1] > 320:
-        det_size_half = half_det_size(det_size)
-        return get_face_single(
-            img_data,
-            analyze_faces(img_data, det_size_half),
-            face_index,
-            det_size_half,
-            gender_source,
-            gender_target,
-            order,
-        )
-
-    try:
-        faces_sorted = sort_by_order(face, order)
-        return faces_sorted[face_index], 0, face_index
-        # return sorted(face, key=lambda x: x.bbox[0])[face_index], 0
-    except IndexError:
-        return None, 0, None
-
-
-@dataclass
-class FaceRecognitionResult:
-    """Output of the face recognition pipeline.
-
-    Carries detected faces along with the BGR images they were detected on,
-    so the swap pipeline can consume it without re-running detection or
-    re-converting color spaces.
-    """
-
-    source_img_bgr: np.ndarray
-    target_img_bgr: np.ndarray
-    source_faces: List[Face] = field(default_factory=list)
-    target_faces: List[Face] = field(default_factory=list)
-
-    @property
-    def source_bboxes(self) -> List[Tuple[float, float, float, float]]:
-        return [tuple(map(float, f.bbox)) for f in self.source_faces]
-
-    @property
-    def target_bboxes(self) -> List[Tuple[float, float, float, float]]:
-        return [tuple(map(float, f.bbox)) for f in self.target_faces]
-
-
-def recognize_faces(
-    source_img: Image.Image,
-    target_img: Image.Image,
-) -> FaceRecognitionResult:
-    """Pipeline 1: detect faces in source and target images.
-
-    Same input as :func:`swap_face`. Returns a :class:`FaceRecognitionResult`
-    exposing the detected face rectangles (via ``source_bboxes`` /
-    ``target_bboxes``) plus the underlying detector output required by the
-    swap pipeline.
+    Returns insightface ``Face`` objects (each carries bbox, embedding,
+    keypoints, etc.) in detector order. The caller picks which one to
+    operate on — bbox is the user-visible identifier.
     """
     import time
 
     t0 = time.perf_counter()
-
-    t1 = time.perf_counter()
-    target_img_bgr = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2BGR)
-    source_img_bgr = cv2.cvtColor(np.array(source_img), cv2.COLOR_RGB2BGR)
-    logger.info(f"recognize_faces: image_conversion took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-    t1 = time.perf_counter()
-    source_faces = analyze_faces(source_img_bgr)
-    logger.info(f"recognize_faces: analyze_source_faces took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-    t1 = time.perf_counter()
-    target_faces = analyze_faces(target_img_bgr)
-    logger.info(f"recognize_faces: analyze_target_faces took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-    logger.info(f"recognize_faces: TOTAL took {(time.perf_counter() - t0) * 1000:.1f}ms")
-
-    return FaceRecognitionResult(
-        source_img_bgr=source_img_bgr,
-        target_img_bgr=target_img_bgr,
-        source_faces=list(source_faces) if source_faces else [],
-        target_faces=list(target_faces) if target_faces else [],
+    img_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    faces = list(analyze_faces(img_bgr) or [])
+    logger.info(
+        f"detect_faces: found {len(faces)} face(s), took {(time.perf_counter() - t0) * 1000:.1f}ms"
     )
+    return faces
 
 
-def swap_face_from_recognition(
-    recognition: FaceRecognitionResult,
-    model: str,
-    source_faces_index: List[int] = [0],
-    faces_index: List[int] = [0],
-    gender_source: int = 0,
-    gender_target: int = 0,
-    faces_order: List = ["large-small", "large-small"],
-    face_boost_enabled: bool = False,
+def swap_specific_face(
+    target_img: Image.Image,
+    source_face: Face,
+    target_face: Face,
+    model: str = "inswapper_128.onnx",
     face_restore_model=None,
     face_restore_visibility: int = 1,
     codeformer_weight: float = 0.5,
     interpolation: str = "Bicubic",
-):
-    """Pipeline 2: perform face swap using a recognition result.
+) -> Image.Image:
+    """Swap exactly ``source_face`` onto exactly ``target_face`` in ``target_img``.
 
-    Consumes the output of :func:`recognize_faces` and runs all remaining
-    swap steps (source/target face selection, model load, swap inference,
-    optional face restoration and blending).
+    Caller resolves which faces to operate on (e.g. via :func:`detect_faces`
+    + IoU-matching against a UI-selected bbox) and passes Face objects in
+    directly. There is no internal re-detection, sorting, gender filtering
+    or index-based selection — those concerns belong to the caller.
+
+    ``source_face`` carries the embedding used to drive the swap; the source
+    image itself isn't needed at this stage.
     """
     import time
 
     t0 = time.perf_counter()
-    source_img = recognition.source_img_bgr
-    target_img = recognition.target_img_bgr
-    source_faces = recognition.source_faces
-    target_faces = recognition.target_faces
+    target_img_bgr = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2BGR)
 
-    result_image = Image.fromarray(cv2.cvtColor(target_img, cv2.COLOR_BGR2RGB))
-    bbox = []
-    swapped_indexes = []
-
-    if not source_faces:
-        logger.error("swap_face_from_recognition: no source faces found")
-        return result_image, bbox, swapped_indexes
-
-    if len(target_faces) == 0:
-        logger.error("swap_face_from_recognition: no target faces found")
-        return result_image, bbox, swapped_indexes
-
-    t1 = time.perf_counter()
-    source_face, src_wrong_gender, source_face_index = get_face_single(
-        source_img,
-        source_faces,
-        face_index=source_faces_index[0],
-        gender_source=gender_source,
-        order=faces_order[1],
-    )
-    logger.info(f"swap_face_from_recognition: select_source_face took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-    if source_face is None:
-        logger.error("swap_face_from_recognition: no source face in the provided index")
-        return result_image, bbox, swapped_indexes
-
-    if src_wrong_gender != 0:
-        logger.error("swap_face_from_recognition: wrong source gender detected")
-        return result_image, bbox, swapped_indexes
-
-    t1 = time.perf_counter()
     if "inswapper" in model:
         model_path = _resolve_inswapper_model_path(model)
     elif "reswapper" in model:
@@ -438,101 +230,25 @@ def swap_face_from_recognition(
     else:
         model_path = model
     face_swapper = getFaceSwapModel(model_path)
-    logger.info(f"swap_face_from_recognition: load_swap_model took {(time.perf_counter() - t1) * 1000:.1f}ms")
 
-    result = target_img
-
-    for face_num in faces_index:
-        if face_num >= len(target_faces):
-            logger.error("swap_face_from_recognition: face index out of bounds")
-            break
-
-        t1 = time.perf_counter()
-        target_face, wrong_gender, target_face_index = get_face_single(
-            target_img,
-            target_faces,
-            face_index=face_num,
-            gender_target=gender_target,
-            order=faces_order[0],
+    if face_restore_model:
+        bgr_fake, M = face_swapper.get(
+            target_img_bgr, target_face, source_face, paste_back=False
         )
-        logger.info(f"swap_face_from_recognition: select_target_face took {(time.perf_counter() - t1) * 1000:.1f}ms")
+        bgr_fake, scale = restorer.get_restored_face(
+            bgr_fake,
+            face_restore_model,
+            face_restore_visibility,
+            codeformer_weight,
+            interpolation,
+        )
+        M *= scale
+        result = swapper.in_swap(target_img_bgr, bgr_fake, M)
+    else:
+        result = face_swapper.get(target_img_bgr, target_face, source_face)
 
-        if target_face is None or wrong_gender != 0:
-            if wrong_gender == 1:
-                logger.error("swap_face_from_recognition: wrong target gender detected")
-            else:
-                logger.error(f"swap_face_from_recognition: no target face found for index {face_num}")
-            continue
-
-        if face_boost_enabled:
-            t1 = time.perf_counter()
-            bgr_fake, M = face_swapper.get(
-                result, target_face, source_face, paste_back=False
-            )
-            logger.info(f"swap_face_from_recognition: face_swap_inference took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-            t1 = time.perf_counter()
-            bgr_fake, scale = restorer.get_restored_face(
-                bgr_fake,
-                face_restore_model,
-                face_restore_visibility,
-                codeformer_weight,
-                interpolation,
-            )
-            logger.info(f"swap_face_from_recognition: face_restoration took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-            t1 = time.perf_counter()
-            M *= scale
-            result = swapper.in_swap(target_img, bgr_fake, M)
-            logger.info(f"swap_face_from_recognition: face_blending took {(time.perf_counter() - t1) * 1000:.1f}ms")
-        else:
-            t1 = time.perf_counter()
-            result = face_swapper.get(result, target_face, source_face)
-            logger.info(f"swap_face_from_recognition: face_swap_inference took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-        bbox = [tuple(map(float, target_face.bbox))]
-        swapped_indexes = [target_face_index]
-
-    t1 = time.perf_counter()
     result_image = Image.fromarray(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
-    logger.info(f"swap_face_from_recognition: result_conversion took {(time.perf_counter() - t1) * 1000:.1f}ms")
-
-    logger.info(f"swap_face_from_recognition: TOTAL took {(time.perf_counter() - t0) * 1000:.1f}ms")
-    return result_image, bbox, swapped_indexes
-
-
-def swap_face(
-    source_img: Image.Image,
-    target_img: Image.Image,
-    model: str,
-    source_faces_index: List[int] = [0],
-    faces_index: List[int] = [0],
-    gender_source: int = 0,
-    gender_target: int = 0,
-    faces_order: List = ["large-small", "large-small"],
-    face_boost_enabled: bool = False,
-    face_restore_model=None,
-    face_restore_visibility: int = 1,
-    codeformer_weight: float = 0.5,
-    interpolation: str = "Bicubic",
-):
-    """Combined pipeline: recognize faces then swap.
-
-    Runs :func:`recognize_faces` followed by :func:`swap_face_from_recognition`
-    so callers get the same end-to-end behavior as before.
-    """
-    recognition = recognize_faces(source_img, target_img)
-    return swap_face_from_recognition(
-        recognition,
-        model=model,
-        source_faces_index=source_faces_index,
-        faces_index=faces_index,
-        gender_source=gender_source,
-        gender_target=gender_target,
-        faces_order=faces_order,
-        face_boost_enabled=face_boost_enabled,
-        face_restore_model=face_restore_model,
-        face_restore_visibility=face_restore_visibility,
-        codeformer_weight=codeformer_weight,
-        interpolation=interpolation,
+    logger.info(
+        f"swap_specific_face: TOTAL took {(time.perf_counter() - t0) * 1000:.1f}ms"
     )
+    return result_image
